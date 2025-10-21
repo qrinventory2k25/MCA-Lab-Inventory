@@ -81,6 +81,11 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        gradient: {
+          blue: "hsl(var(--gradient-blue) / <alpha-value>)",
+          indigo: "hsl(var(--gradient-indigo) / <alpha-value>)",
+          purple: "hsl(var(--gradient-purple) / <alpha-value>)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
