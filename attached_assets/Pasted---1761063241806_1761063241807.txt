@@ -1,0 +1,110 @@
+████████████████████████████████████████████████████████████████████
+█                                                                  █
+█       College QR Inventory System - Full Stack Prompt            █
+█                                                                  █
+████████████████████████████████████████████████████████████████████
+
+PROJECT NAME
+------------
+College QR Inventory System
+
+TECH STACK
+----------
+Frontend : React (Vite) + Tailwind CSS
+Backend  : Node.js + Express.js + Supabase (Postgres + Storage)
+DB/Storage SDK : @supabase/supabase-js
+QR Generation : qrcode
+
+IMPORTANT NOTE
+--------------
+- UI MUST NOT use black color anywhere
+- Theme: Gradient Blue → Indigo → Purple
+- Responsive, high-contrast, smooth hover transitions
+- Toast/snackbar notifications on create/update/delete
+
+SUPABASE CONFIGURATION
+---------------------
+SUPABASE_URL               : https://wpqhrrdgltbigfhkmyrk.supabase.co
+SUPABASE_ANON_KEY           : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndwcWhycmRnbHRiaWdmaGtteXJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA4OTExNzEsImV4cCI6MjA3NjQ2NzE3MX0.21qCTdll77Op7CYP8_tCoLH3pOOLdJW6Q5883MMLR9Q
+SUPABASE_SERVICE_ROLE_KEY   : eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndwcWhycmRnbHRiaWdmaGtteXJrIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDg5MTE3MSwiZXhwIjoyMDc2NDY3MTcxfQ.-32YsuQlrBso7-VstHM5Bq62nLMKiDnUVZT87U6c2uI
+PORT                       : 5000
+
+PROJECT STRUCTURE
+-----------------
+/frontend      → React frontend (Vite + Tailwind)
+/backend       → Express backend
+README.md      → Setup & instructions
+.env.example   → Sample environment variables
+
+FRONTEND REQUIREMENTS
+---------------------
+Pages:
+1. Home
+   - Gradient hero, college info
+
+2. AddSystem
+   - Form Fields: LAB NAME dropdown (MCA, BCA, UIT, PIT, UCS, PCS, PDS), NUMBER OF SYSTEMS
+   - Auto-generate sequential IDs per lab
+   - Default configuration
+   - Generate QR code (payload: idCode, labName, description, URL)
+
+3. ViewAll
+   - Table: ID | LAB NAME | CONFIGURATION | QR Thumbnail
+   - Search/filter: LAB NAME or ID
+   - Row Actions: Edit | Delete | Download QR
+   - Bulk Delete: deletes selected systems + QR images from Supabase
+   - Download CSV
+
+4. EditSystem
+   - Prefilled form, PUT request, regenerates QR, frontend refresh
+
+5. SystemDetails
+   - Route: /system/:id, display info + QR
+
+6. Bulk QR Download
+   - Button: select LAB NAME → download ZIP of QR codes
+
+BACKEND REQUIREMENTS
+--------------------
+- Express + dotenv + qrcode + cors + @supabase/supabase-js
+- CRUD endpoints:
+   - POST   /api/systems
+   - GET    /api/systems
+   - GET    /api/systems/:id
+   - PUT    /api/systems/:id
+   - DELETE /api/systems/:id
+   - DELETE /api/systems/bulk
+   - GET    /api/systems/export/:lab
+
+DATABASE SCHEMA
+---------------
+CREATE TABLE systems (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_code VARCHAR(20) UNIQUE NOT NULL,
+    lab_name VARCHAR(10) NOT NULL,
+    description TEXT DEFAULT 'INTEL CORE 2 DUO 2.90 GHZ, 4GB RAM, 360GB HDD, LED MONITOR, KB & MOUSE',
+    qr_image_url TEXT,
+    qr_payload TEXT,
+    system_url TEXT,
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
+
+SETUP INSTRUCTIONS
+------------------
+1. Create /frontend & /backend folders
+2. Add .env file with Supabase credentials
+3. Install dependencies:
+   - /frontend: npm install
+   - /backend: npm install express dotenv qrcode cors @supabase/supabase-js
+4. Start backend → node index.js or nodemon
+5. Start frontend → npm run dev
+6. Open browser → http://localhost:5173
+7. Add systems, edit, delete, bulk delete, download CSV/ZIP
+8. Frontend and Supabase fully synchronized
+
+████████████████████████████████████████████████████████████████████
+█                                                                  █
+█                     END OF BLACK TERMINAL PROMPT                █
+█                                                                  █
+████████████████████████████████████████████████████████████████████
