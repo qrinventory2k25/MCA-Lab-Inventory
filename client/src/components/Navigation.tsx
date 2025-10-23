@@ -1,11 +1,13 @@
 import { Link, useLocation } from "wouter";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function Navigation() {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAuthenticated, logout } = useAuth();
 
   const navLinks = [
     { href: "/", label: "Home" },
@@ -17,6 +19,11 @@ export function Navigation() {
     if (href === "/") return location === href;
     return location.startsWith(href);
   };
+
+  // Don't show navigation on login page
+  if (location === '/login') {
+    return null;
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-gradient-blue via-gradient-indigo to-gradient-purple shadow-md">
@@ -47,6 +54,17 @@ export function Navigation() {
                 )}
               </Link>
             ))}
+            
+            {/* Logout Button */}
+            <Button
+              onClick={logout}
+              variant="ghost"
+              size="sm"
+              className="text-white/90 hover:text-white hover:bg-white/20 transition-all duration-200"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
           </nav>
 
           <Button
@@ -82,6 +100,19 @@ export function Navigation() {
                 </div>
               </Link>
             ))}
+            
+            {/* Mobile Logout Button */}
+            <Button
+              onClick={() => {
+                logout();
+                setMobileMenuOpen(false);
+              }}
+              variant="ghost"
+              className="w-full justify-start text-white hover:bg-white/20"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
           </nav>
         </div>
       )}

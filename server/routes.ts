@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./supabase-storage";
-import { insertSystemSchema, type System } from "@shared/schema";
+import { insertSystemSchema, type System, LAB_NAMES } from "@shared/schema";
 import { z } from "zod";
 import { supabase, uploadQRCode, deleteQRCode, getQRCodeBuffer } from "./supabase";
 import { generateQRCode, createQRPayload, getQRFileName } from "./qr-generator";
@@ -17,6 +17,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching systems:", error);
       res.status(500).json({ error: "Failed to fetch systems" });
+    }
+  });
+
+  // GET systems statistics
+  app.get("/api/systems/stats", async (req, res) => {
+    try {
+      const stats = await storage.getSystemsStats();
+      res.json({
+        ...stats,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error fetching statistics:", error);
+      res.status(500).json({ error: "Failed to fetch statistics" });
     }
   });
 
@@ -87,6 +101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         } catch (qrError) {
           console.error(`Failed to generate QR for ${system.idCode}:`, qrError);
+          console.error('QR Error details:', JSON.stringify(qrError, null, 2));
         }
       }
 
@@ -191,10 +206,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid or empty IDs array" });
       }
 
-      const systems = await Promise.all(ids.map(id => storage.getSystemById(id)));
-      const validSystems = systems.filter(Boolean) as System[];
-
-      for (const system of validSystems) {
+      // Get systems with QR codes to delete them from storage
+      const systems = await storage.getSystemsByIds(ids);
+      
+      // Delete QR codes from storage
+      for (const system of systems) {
         if (system.idCode) {
           try {
             await deleteQRCode(getQRFileName(system.idCode));
@@ -204,6 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Delete systems from database
       const deletedCount = await storage.deleteSystems(ids);
 
       res.json({ 
@@ -284,6 +301,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error generating ZIP:", error);
       res.status(500).json({ error: "Failed to generate QR codes ZIP" });
+    }
+  });
+
+  // GET sample QR code generation route
+  app.get("/api/qr/sample", async (req, res) => {
+    try {
+      const samplePayload = {
+        idCode: "SAMPLE-001",
+        labName: "SAMPLE",
+        description: "Sample QR code for testing",
+        systemUrl: `${process.env.API_URL || 'http://localhost:5000'}/system/sample-id`,
+      };
+
+      const qrBuffer = await generateQRCode(samplePayload);
+      
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Content-Disposition", "inline; filename=sample-qr.png");
+      res.send(qrBuffer);
+    } catch (error) {
+      console.error("Error generating sample QR:", error);
+      res.status(500).json({ error: "Failed to generate sample QR code" });
     }
   });
 

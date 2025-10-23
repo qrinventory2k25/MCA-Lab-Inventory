@@ -14,9 +14,11 @@ export function createQRPayload(system: {
   description: string;
   id: string;
 }): QRPayload {
-  const baseUrl = process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : "http://localhost:5000";
+  // Use environment variable for API URL, fallback to localhost for development
+  const baseUrl = process.env.API_URL || 
+    (process.env.NODE_ENV === 'production' 
+      ? 'https://your-backend-app.onrender.com' // Replace with your actual Render backend URL
+      : 'http://localhost:5000');
   
   return {
     idCode: system.idCode,
@@ -35,7 +37,7 @@ export async function generateQRCode(payload: QRPayload): Promise<Buffer> {
     width: 512,
     margin: 2,
     color: {
-      dark: "#4F46E5",
+      dark: "#000000",
       light: "#FFFFFF",
     },
   });

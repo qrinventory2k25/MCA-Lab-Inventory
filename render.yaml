@@ -1,0 +1,36 @@
+services:
+  # Backend API Service
+  - type: web
+    name: attachmentparser-backend
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build:server
+    startCommand: npm run start:server
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: API_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+
+  # Frontend Static Site
+  - type: static
+    name: attachmentparser-frontend
+    buildCommand: npm install && npm run build:client
+    staticPublishPath: ./dist/public
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false

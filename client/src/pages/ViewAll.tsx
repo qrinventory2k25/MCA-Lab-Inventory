@@ -22,6 +22,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { LAB_NAMES, type System } from "@shared/schema";
 import {
   Search,
@@ -31,6 +33,11 @@ import {
   FileDown,
   QrCode as QrCodeIcon,
   Loader2,
+  BarChart3,
+  Grid3X3,
+  List,
+  Database,
+  TrendingUp,
 } from "lucide-react";
 import { showToast } from "@/lib/toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -42,7 +49,8 @@ export default function ViewAll() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [systemToDelete, setSystemToDelete] = useState<string | null>(null);
-  
+  const [viewMode, setViewMode] = useState<"list" | "grid" | "chart">("list");
+
   const queryClient = useQueryClient();
 
   const { data: systems = [], isLoading } = useQuery<System[]>({
@@ -80,17 +88,55 @@ export default function ViewAll() {
   });
 
   const filteredSystems = useMemo(() => {
-    return systems.filter((system) => {
-      const matchesSearch =
-        searchTerm === "" ||
-        system.idCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        system.labName.toLowerCase().includes(searchTerm.toLowerCase());
+    return systems
+      .filter((system) => {
+        const matchesSearch =
+          searchTerm === "" ||
+          system.idCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          system.labName.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesLab = labFilter === "all" || system.labName === labFilter;
+        const matchesLab = labFilter === "all" || system.labName === labFilter;
 
-      return matchesSearch && matchesLab;
-    });
+        return matchesSearch && matchesLab;
+      })
+      .sort((a, b) => a.idCode.localeCompare(b.idCode));
   }, [systems, searchTerm, labFilter]);
+
+  // Statistics calculations
+  const stats = useMemo(() => {
+    const totalSystems = systems.length;
+    const filteredCount = filteredSystems.length;
+    
+    // Count per department
+    const departmentCounts = LAB_NAMES.reduce((acc, lab) => {
+      acc[lab] = systems.filter(system => system.labName === lab).length;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Group by configuration (description)
+    const configGroups = systems.reduce((acc, system) => {
+      const config = system.description;
+      if (!acc[config]) {
+        acc[config] = [];
+      }
+      acc[config].push(system);
+      return acc;
+    }, {} as Record<string, System[]>);
+
+    const configStats = Object.entries(configGroups).map(([config, systems]) => ({
+      configuration: config,
+      count: systems.length,
+      systems: systems,
+      departments: [...new Set(systems.map(s => s.labName))],
+    })).sort((a, b) => b.count - a.count);
+
+    return {
+      totalSystems,
+      filteredCount,
+      departmentCounts,
+      configStats,
+    };
+  }, [systems, filteredSystems]);
 
   const toggleSelection = (id: string) => {
     const newSelection = new Set(selectedSystems);
@@ -126,7 +172,7 @@ export default function ViewAll() {
   };
 
   const confirmBulkDelete = () => {
-    bulkDeleteMutation.mutate(Array.from(selectedSystems));
+    bulkDeleteMutation.mutate(Array.from(selectedSystems)); // ✅ FIX: convert Set to Array
   };
 
   const handleExportCSV = () => {
@@ -144,8 +190,8 @@ export default function ViewAll() {
       return;
     }
 
-    const labs = [...new Set(selectedSystemsList.map((s) => s.labName))];
-    
+    const labs = Array.from(new Set(selectedSystemsList.map((s) => s.labName)));
+
     if (labs.length > 1) {
       showToast.error("Please select systems from a single lab");
       return;
@@ -182,15 +228,103 @@ export default function ViewAll() {
   return (
     <div className="min-h-screen bg-background py-8 md:py-12">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
+        {/* --- Header --- */}
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-semibold text-foreground mb-2">
-            All Systems
-          </h1>
-          <p className="text-muted-foreground">
-            View, search, and manage all registered computer systems
-          </p>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-semibold text-foreground mb-2">
+                All Systems
+              </h1>
+              <p className="text-muted-foreground">
+                View, search, and manage all registered computer systems
+              </p>
+            </div>
+            
+            {/* View Mode Controls */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === "list" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+                className="h-9"
+              >
+                <List className="w-4 h-4 mr-2" />
+                List
+              </Button>
+              <Button
+                variant={viewMode === "grid" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("grid")}
+                className="h-9"
+              >
+                <Grid3X3 className="w-4 h-4 mr-2" />
+                Grid
+              </Button>
+              <Button
+                variant={viewMode === "chart" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("chart")}
+                className="h-9"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Chart
+              </Button>
+            </div>
+          </div>
+
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <Card className="p-4 border-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gradient-blue to-gradient-indigo flex items-center justify-center">
+                  <Database className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Systems</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.totalSystems}</p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4 border-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gradient-indigo to-gradient-purple flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Filtered Results</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.filteredCount}</p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4 border-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gradient-purple to-gradient-blue flex items-center justify-center">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Departments</p>
+                  <p className="text-2xl font-bold text-foreground">{LAB_NAMES.length}</p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4 border-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gradient-blue via-gradient-indigo to-gradient-purple flex items-center justify-center">
+                  <Grid3X3 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Configurations</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.configStats.length}</p>
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
 
+        {/* --- Filters --- */}
         <Card className="p-6 border-2 mb-6">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
@@ -200,12 +334,11 @@ export default function ViewAll() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 h-11"
-                data-testid="input-search"
               />
             </div>
 
             <Select value={labFilter} onValueChange={setLabFilter}>
-              <SelectTrigger className="w-full md:w-48 h-11" data-testid="select-lab-filter">
+              <SelectTrigger className="w-full md:w-48 h-11">
                 <SelectValue placeholder="Filter by lab" />
               </SelectTrigger>
               <SelectContent>
@@ -221,7 +354,6 @@ export default function ViewAll() {
             <Button
               onClick={handleExportCSV}
               className="bg-gradient-to-r from-gradient-blue to-gradient-indigo text-white"
-              data-testid="button-export-csv"
             >
               <FileDown className="w-5 h-5 mr-2" />
               Export CSV
@@ -229,6 +361,7 @@ export default function ViewAll() {
           </div>
         </Card>
 
+        {/* --- Bulk Actions --- */}
         {selectedSystems.size > 0 && (
           <Card className="p-4 mb-6 border-2 bg-muted/30 animate-in slide-in-from-top-2 duration-300">
             <div className="flex items-center justify-between flex-wrap gap-4">
@@ -240,8 +373,6 @@ export default function ViewAll() {
                   variant="outline"
                   size="sm"
                   onClick={handleBulkDownloadQR}
-                  className="border-gradient-indigo text-gradient-indigo hover:bg-gradient-indigo/10"
-                  data-testid="button-bulk-download"
                 >
                   <Download className="w-4 h-4 mr-2" />
                   Download QR Codes
@@ -250,7 +381,6 @@ export default function ViewAll() {
                   variant="destructive"
                   size="sm"
                   onClick={handleBulkDelete}
-                  data-testid="button-bulk-delete"
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete Selected
@@ -260,7 +390,44 @@ export default function ViewAll() {
           </Card>
         )}
 
-        {filteredSystems.length === 0 ? (
+        {/* --- Department Counts --- */}
+        <Card className="p-6 border-2 mb-6">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Systems by Department</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {LAB_NAMES.map((lab) => (
+              <div key={lab} className="text-center">
+                <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-gradient-blue/20 to-gradient-indigo/20 flex items-center justify-center mb-2">
+                  <span className="text-2xl font-bold text-gradient-indigo">{stats.departmentCounts[lab]}</span>
+                </div>
+                <p className="text-sm font-medium text-foreground">{lab}</p>
+                <p className="text-xs text-muted-foreground">
+                  {stats.departmentCounts[lab] === 1 ? 'system' : 'systems'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* --- Main Content Area --- */}
+        <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "list" | "grid" | "chart")}>
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="list" className="flex items-center gap-2">
+              <List className="w-4 h-4" />
+              List View
+            </TabsTrigger>
+            <TabsTrigger value="grid" className="flex items-center gap-2">
+              <Grid3X3 className="w-4 h-4" />
+              Grid View
+            </TabsTrigger>
+            <TabsTrigger value="chart" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Chart View
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="list">
+            {/* List View Content */}
+            {filteredSystems.length === 0 ? (
           <Card className="p-12 text-center border-2">
             <div className="flex justify-center mb-4">
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-gradient-blue/20 to-gradient-purple/20 flex items-center justify-center">
@@ -277,10 +444,7 @@ export default function ViewAll() {
             </p>
             {systems.length === 0 && (
               <Link href="/add-system">
-                <Button
-                  className="bg-gradient-to-r from-gradient-blue via-gradient-indigo to-gradient-purple text-white"
-                  data-testid="button-add-first-system"
-                >
+                <Button className="bg-gradient-to-r from-gradient-blue via-gradient-indigo to-gradient-purple text-white">
                   <QrCodeIcon className="w-5 h-5 mr-2" />
                   Add Your First System
                 </Button>
@@ -300,8 +464,6 @@ export default function ViewAll() {
                           filteredSystems.length > 0
                         }
                         onCheckedChange={toggleSelectAll}
-                        className="border-white data-[state=checked]:bg-white data-[state=checked]:text-primary"
-                        data-testid="checkbox-select-all"
                       />
                     </th>
                     <th className="px-4 py-4 text-left font-semibold">System ID</th>
@@ -318,13 +480,11 @@ export default function ViewAll() {
                       className={`border-b last:border-b-0 hover:bg-muted/30 transition-colors duration-150 ${
                         index % 2 === 0 ? "bg-white" : "bg-muted/10"
                       }`}
-                      data-testid={`row-system-${system.id}`}
                     >
                       <td className="px-4 py-4">
                         <Checkbox
                           checked={selectedSystems.has(system.id)}
                           onCheckedChange={() => toggleSelection(system.id)}
-                          data-testid={`checkbox-system-${system.id}`}
                         />
                       </td>
                       <td className="px-4 py-4">
@@ -364,7 +524,6 @@ export default function ViewAll() {
                               size="icon"
                               variant="ghost"
                               className="h-9 w-9 text-gradient-indigo hover:bg-gradient-indigo/10"
-                              data-testid={`button-edit-${system.id}`}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -374,7 +533,6 @@ export default function ViewAll() {
                             variant="ghost"
                             onClick={() => handleDownloadSingleQR(system)}
                             className="h-9 w-9 text-gradient-blue hover:bg-gradient-blue/10"
-                            data-testid={`button-download-${system.id}`}
                           >
                             <Download className="w-4 h-4" />
                           </Button>
@@ -383,7 +541,6 @@ export default function ViewAll() {
                             variant="ghost"
                             onClick={() => handleDelete(system.id)}
                             className="h-9 w-9 text-destructive hover:bg-destructive/10"
-                            data-testid={`button-delete-${system.id}`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -396,15 +553,178 @@ export default function ViewAll() {
             </div>
           </Card>
         )}
+          </TabsContent>
+
+          <TabsContent value="grid">
+            {/* Grid View Content */}
+            {filteredSystems.length === 0 ? (
+              <Card className="p-12 text-center border-2">
+                <div className="flex justify-center mb-4">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-gradient-blue/20 to-gradient-purple/20 flex items-center justify-center">
+                    <QrCodeIcon className="w-10 h-10 text-gradient-indigo" />
+                  </div>
+                </div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">
+                  {systems.length === 0 ? "No Systems Found" : "No matching systems"}
+                </h3>
+                <p className="text-muted-foreground mb-6">
+                  {systems.length === 0
+                    ? "Get started by adding your first system to the inventory"
+                    : "Try adjusting your search or filter criteria"}
+                </p>
+                {systems.length === 0 && (
+                  <Link href="/add-system">
+                    <Button className="bg-gradient-to-r from-gradient-blue via-gradient-indigo to-gradient-purple text-white">
+                      <QrCodeIcon className="w-5 h-5 mr-2" />
+                      Add Your First System
+                    </Button>
+                  </Link>
+                )}
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredSystems.map((system) => (
+                  <Card key={system.id} className="p-6 border-2 hover-elevate transition-all duration-200">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="font-semibold text-foreground">{system.idCode}</h3>
+                        <Badge variant="secondary" className="mt-1">
+                          {system.labName}
+                        </Badge>
+                      </div>
+                      <Checkbox
+                        checked={selectedSystems.has(system.id)}
+                        onCheckedChange={() => toggleSelection(system.id)}
+                      />
+                    </div>
+                    
+                    <div className="mb-4">
+                      <div className="w-24 h-24 mx-auto rounded-lg border-2 border-gradient-indigo/30 bg-white p-2">
+                        {system.qrImageUrl ? (
+                          <img
+                            src={system.qrImageUrl}
+                            alt={`QR code for ${system.idCode}`}
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
+                      {system.description}
+                    </p>
+
+                    <div className="flex gap-2">
+                      <Link href={`/system/${system.id}`} className="flex-1">
+                        <Button variant="outline" size="sm" className="w-full">
+                          View
+                        </Button>
+                      </Link>
+                      <Link href={`/edit-system/${system.id}`}>
+                        <Button size="sm" variant="ghost">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </Link>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDownloadSingleQR(system)}
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDelete(system.id)}
+                        className="text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="chart">
+            {/* Chart View Content - Configuration Groups */}
+            <div className="space-y-6">
+              <Card className="p-6 border-2">
+                <h3 className="text-lg font-semibold text-foreground mb-4">Systems by Configuration</h3>
+                <div className="space-y-4">
+                  {stats.configStats.map((config, index) => (
+                    <div key={index} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gradient-blue to-gradient-indigo flex items-center justify-center">
+                            <span className="text-sm font-bold text-white">{config.count}</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground">Configuration {index + 1}</p>
+                            <div className="flex gap-2 mt-1">
+                              {config.departments.map((dept) => (
+                                <Badge key={dept} variant="outline" className="text-xs">
+                                  {dept}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge variant="secondary">
+                          {config.count} {config.count === 1 ? 'system' : 'systems'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {config.configuration}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {/* Department Distribution Chart */}
+              <Card className="p-6 border-2">
+                <h3 className="text-lg font-semibold text-foreground mb-4">Department Distribution</h3>
+                <div className="space-y-3">
+                  {LAB_NAMES.map((lab) => {
+                    const count = stats.departmentCounts[lab];
+                    const percentage = stats.totalSystems > 0 ? (count / stats.totalSystems) * 100 : 0;
+                    return (
+                      <div key={lab} className="flex items-center gap-3">
+                        <div className="w-20 text-sm font-medium text-foreground">{lab}</div>
+                        <div className="flex-1 bg-muted rounded-full h-6 relative overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-gradient-blue to-gradient-indigo rounded-full transition-all duration-500"
+                            style={{ width: `${percentage}%` }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-xs font-medium text-foreground">
+                              {count} ({percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
+      {/* --- Delete Dialog --- */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete System</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this system? This action cannot be
-              undone and will also remove the QR code from storage.
+              Are you sure you want to delete this system? This action cannot be undone and will also remove the QR code from storage.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -426,13 +746,13 @@ export default function ViewAll() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* --- Bulk Delete Dialog --- */}
       <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selectedSystems.size} Systems</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {selectedSystems.size} systems? This
-              action cannot be undone and will also remove all QR codes from storage.
+              Are you sure you want to delete {selectedSystems.size} systems? This action cannot be undone and will also remove all QR codes from storage.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
